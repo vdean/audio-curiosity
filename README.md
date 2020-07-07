@@ -1,7 +1,7 @@
 # See, Hear, Explore: Curiosity via Audio-Visual Association
-[Website](https://vdean.github.io/audio-curiosity.html)
+[[Website]](https://vdean.github.io/audio-curiosity.html)&nbsp;&nbsp;&nbsp;&nbsp;[[Video]](https://youtu.be/DMiW5hwsoeo)
 
-[Victoria Dean](https://vdean.github.io/)       [Shubham Tulsiani](https://shubhtuls.github.io/)        [Abhinav Gupta](http://www.cs.cmu.edu/~abhinavg/)
+[Victoria Dean](https://vdean.github.io/)&nbsp;&nbsp;&nbsp;&nbsp;[Shubham Tulsiani](https://shubhtuls.github.io/)&nbsp;&nbsp;&nbsp;&nbsp;[Abhinav Gupta](http://www.cs.cmu.edu/~abhinavg/)
 
 Carnegie Mellon University, Facebook AI Research
 
