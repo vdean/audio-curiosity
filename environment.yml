@@ -1,0 +1,20 @@
+name: venv_audio_curiosity
+channels:
+  - condo-forge
+dependencies:
+  - python=3.7
+  - pip
+  - anaconda
+  - tensorflow-gpu==1.15.0
+  - ffmpeg
+  - libsndfile
+  - pip:
+    - gym[atari]
+    - gym-retro
+    - baselines
+    - numpy
+    - scipy
+    - mpi4py
+    - scipy
+    - Pillow==2.2.1
+    - librosa
