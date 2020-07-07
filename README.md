@@ -10,6 +10,7 @@ This is an implementation of our paper on curiosity via audio-visual association
 This code trains an audio-visual exploration agent in Atari environments. It does not yet have support for the Habitat navigation setting, as the underlying environment is not open-sourced.
 
 ## Installation
+This installation requires a machine with a GPU.
 ```bash
 git clone git@github.com:vdean/audio-curiosity.git
 cd audio-curiosity
@@ -24,11 +25,11 @@ python3 -m retro.import ROMS/
 
 To add audio support, copy our modified retro_env.py into retro. If you set up a conda environment as instructed above, this command should work:
 ```bash
-cp retro_env.py ~/anaconda3/envs/venv_audio_curiosity/lib/python3.7/site-packages/retro/retro_env.py
+cp retro_env.py $CONDA_PREFIX/lib/python3.7/site-packages/retro/retro_env.py
 ```
 
 ### Baselines Setup
-Modify the following line in ~/anaconda3/envs/venv_audio_curiosity/lib/python3.7/site-packages/baselines/logger.py:
+Modify the following line in $CONDA_PREFIX/lib/python3.7/site-packages/baselines/logger.py:
 ```python
 summary = self.tf.Summary(value=[summary_val(k, v) for k, v in kvs.items()])
 ```
