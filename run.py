@@ -169,7 +169,7 @@ def get_experiment_environment(**args):
     setup_mpi_gpus()
 
     time = datetime.datetime.now().strftime("%m-%d-%H-%M-%S")
-    path_with_args = os.environ['TMPDIR'] + '_'.join([
+    path_with_args = './logs/' + '_'.join([
         time, args['exp_name'], args['env_kind'], args['feature_space'],
         str(args['envs_per_process']), str(args['train_discriminator']),
         str(args['discriminator_weighted'])

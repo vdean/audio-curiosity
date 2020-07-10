@@ -1,13 +1,11 @@
-name: venv_audio_curiosity
-channels:
-  - conda-forge
+name: venv_audio_curiosity_conda_tf
 dependencies:
   - python=3.7
   - pip
   - anaconda
-  - tensorflow-gpu==1.15.0
   - ffmpeg
-  - libsndfile
+  - tensorflow-gpu==1.15.0
+  - conda-forge::libsndfile
   - pip:
     - gym[atari]
     - gym-retro
@@ -15,6 +13,5 @@ dependencies:
     - numpy
     - scipy
     - mpi4py
-    - scipy
     - Pillow==2.2.1
     - librosa

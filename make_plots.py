@@ -34,8 +34,6 @@ def assign_label(path, params):
         label += ' ' + params.split('noise')[1] + 'with noise'
     if 'joint' in path:
         label = 'Combined curiosities (ours)'
-    if 'normalize' in path:
-        label += 'losses normalized'
     if 'disagreement' in params:
         label = 'Disagreement'
     return label
@@ -88,7 +86,7 @@ def get_paths(paths_str):
     for path in paths_str.split(','):
         if '*' in path:
             try:
-                paths.extend(os.popen('ls -d $TMPDIR/0*' + path[1:] + '*/ 2> /dev/null').read().split())
+                paths.extend(os.popen('ls -d logs/*' + path[1:] + '*/ 2> /dev/null').read().split())
             except:
                 print("Exception: paths not found")
                 continue
@@ -128,10 +126,6 @@ def create_params(path):
             params = get_disagreement_params(path)
         if 'joint' in path:
             params += '_joint'
-        if 'normalized' in path:
-            params += '-normalized'
-        if 'unweighted' in path:
-            params += '-unweighted'
     return params
 
 
