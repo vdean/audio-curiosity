@@ -1,4 +1,12 @@
+import sys
+sys.path.append('../habitat-av')
+from habitat_audio import *
+
+import itertools
 from collections import deque
+from collections import defaultdict
+from copy import copy
+import scipy.io.wavfile as wv
 
 import gym
 import numpy as np
@@ -58,8 +66,10 @@ class ProcessFrame84(gym.ObservationWrapper):
             img = np.reshape(frame, [210, 160, 3]).astype(np.float32)
         elif frame.size == 250 * 160 * 3:
             img = np.reshape(frame, [250, 160, 3]).astype(np.float32)
-        elif frame.size == 224 * 240 * 3:
+        elif frame.size == 224 * 240 * 3:  # atari resolution
             img = np.reshape(frame, [224, 240, 3]).astype(np.float32)
+        elif frame.size == 128 * 128 * 3:  # habitat resolution
+            img = np.reshape(frame, [128, 128, 3]).astype(np.float32)
         else:
             assert False, "Unknown resolution." + str(frame.size)
         img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
@@ -112,69 +122,54 @@ class FrameSkip(gym.Wrapper):
         return ob, totrew, done, info
 
 
-class RetroALEActions(gym.ActionWrapper):
-    def __init__(self, env, all_buttons, n_players=1):
-        gym.ActionWrapper.__init__(self, env)
-        self.n_players = n_players
-        self._num_buttons = len(all_buttons)
-        bs = [-1, 0, 4, 5, 6, 7]
-
-        def update_actions(old_actions, offset=0):
-            actions = []
-            for b in old_actions:
-                for button in bs:
-                    action = []
-                    action.extend(b)
-                    if button != -1:
-                        action.append(button + offset)
-                    actions.append(action)
-            return actions
-
-        current_actions = [[]]
-        for i in range(self.n_players):
-            current_actions = update_actions(current_actions, i * self._num_buttons)
-        self._actions = current_actions
-        self.action_space = gym.spaces.Discrete(len(self._actions))
-
-    def action(self, a):
-        mask = np.zeros(self._num_buttons * self.n_players)
-        for i in self._actions[a]:
-            mask[i] = 1
-        return mask
-
-
-class StickyActionEnv(gym.Wrapper):
-    def __init__(self, env, p=0.5):
-        super(StickyActionEnv, self).__init__(env)
-        self.p = p
-        self.last_action = [0]*8
-
-    def reset(self):
-        self.last_action = [0]*8
-        return self.env.reset()
-
-    def step(self, action):
-        if self.unwrapped.np_random.uniform() < self.p:
-            action = self.last_action
-        self.last_action = action
-        obs, reward, done, info = self.env.step(action)
-        return obs, reward, done, info
-
-
-def make_retro(env_name="Breakout", naudio_samples=None,
-               sticky_env=False, make_video=False, is_baseline=False):
-    import retro
+def make_habitat():
+    from habitat.datasets import make_dataset
+    from habitat_baselines.common.environments import NavRLEnv
+    from default import get_config
     from baselines.common.atari_wrappers import FrameStack
-    env = retro.make(env_name + '-Atari2600', naudio_samples=naudio_samples,
-                     make_video=make_video, is_baseline=is_baseline)
-    max_episode_steps = 4500
-    env = MaxAndSkipEnv(env, skip=4)
+    
+    config = get_config(config_paths="/home/vdean/habitat-av/configs/tasks/pointnav_nomap.yaml")
+    config.defrost()
+    config.TASK_CONFIG.DATASET.SPLIT = config.EVAL.SPLIT
+    config.freeze()
+    dataset = make_dataset(id_dataset=config.TASK_CONFIG.DATASET.TYPE,
+                           config=config.TASK_CONFIG.DATASET)
+    env = NavRLEnv(config=config, dataset=dataset)
+    env = HabitatWrapper(env)
     env = ProcessFrame84(env, crop=False)
     env = FrameStack(env, 4)
-    if not sticky_env:
-        env = ExtraTimeLimit(env, max_episode_steps)
-    if sticky_env:
-        env._max_episode_steps = max_episode_steps * 4
-        env = StickyActionEnv(env)
-    env = RetroALEActions(env, env.buttons)
     return env
+
+class HabitatWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+        self.action_space = gym.spaces.Discrete(3)
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(128, 128, 3), dtype=np.uint8)
+        self.state_counts = defaultdict(int)
+        self.state_counts_recent = defaultdict(int)
+        self.states_visited = {}
+        self.states_visited_recent = {}
+
+    def reset(self):
+        print("Total visited states:",self.states_visited.keys())
+        print("Recently visited states:",self.states_visited_recent.keys())
+        print("Total visited state counts:",self.state_counts)
+        print("Recently visited state counts:",self.state_counts_recent)
+        self.states_visited_recent = {}
+        self.state_counts_recent = defaultdict(int)
+        return np.asarray(self.env.reset()['rgb'])
+
+    def step(self, action):
+        # Action 0 is reset, so just use actions 1 (move forward), 2 (turn left), and 3 (turn right)
+        ob, rew, done, info = self.env.step(**{'action':action+1})
+        position = self.env._env._sim.get_agent_state().position
+        xy_position = tuple([position[0],position[2]])
+        self.states_visited[xy_position] = True
+        self.states_visited_recent[xy_position] = True
+        self.state_counts[xy_position] += 1
+        self.state_counts_recent[xy_position] += 1
+        info['n_states_visited'] = len(self.states_visited.keys())
+        info['n_states_visited_recent'] = len(self.states_visited_recent.keys())
+        if info['audio_file'] is not None:
+            rate, info['audio'] = wv.read(info['audio_file'])
+        return np.asarray(ob['rgb']), rew, done, info

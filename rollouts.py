@@ -1,4 +1,5 @@
 from collections import deque, defaultdict
+import math
 import os
 
 import cv2
@@ -57,6 +58,10 @@ class Rollout:
 
     def collect_rollout(self, n_updates):
         self.ep_infos_new = []
+        ob = self.envs[0][0].reset()
+        ac, _, _ = self.policy.get_ac_value_nlp(np.array([ob]))
+        self.env_step(0, ac)
+
         for _ in range(self.nsteps):
             self.rollout_step()
         self.calculate_reward(n_updates)
@@ -96,7 +101,7 @@ class Rollout:
 
         if audio_clip is None:
             audio_clip = self.buf_audio[env].astype(np.int16)
-        frame_rate = 15
+        frame_rate = 1
         wv.write(audio_path, self.intrinsic_model.naudio_samples * frame_rate, audio_clip)
 
         video = cv2.VideoWriter(tmp_path, cv2.VideoWriter_fourcc(*"mp4v"), frame_rate, (84, 84))
@@ -142,9 +147,11 @@ class Rollout:
                 retroepinfo = info.get('retro_episode', {})
                 epinfo.update(mzepinfo)
                 epinfo.update(retroepinfo)
-                if epinfo:
-                    self.ep_infos_new.append((self.step_count, epinfo))
-
+                
+                if "n_states_visited" in info:
+                    epinfo["n_states_visited"] = info["n_states_visited"]
+                    epinfo["n_states_visited_recent"] = info["n_states_visited_recent"]
+                self.ep_infos_new.append((self.step_count, epinfo))
             sli = slice(l * self.lump_stride, (l + 1) * self.lump_stride)
 
             acs, vpreds, nlps = self.policy.get_ac_value_nlp(obs)
@@ -188,33 +195,27 @@ class Rollout:
             keys_ = all_ep_infos[0].keys()
             all_ep_infos = {k: [i[k] for i in all_ep_infos] for k in keys_}
 
-            self.statlists['eprew'].extend(all_ep_infos['r'])
-            self.stats['eprew_recent'] = np.mean(all_ep_infos['r'])
-            self.statlists['eplen'].extend(all_ep_infos['l'])
-            self.stats['epcount'] += len(all_ep_infos['l'])
-            self.stats['tcount'] += sum(all_ep_infos['l'])
+            self.statlists['n_states_visited'] = all_ep_infos['n_states_visited']
+            self.statlists['n_states_visited_recent'] = all_ep_infos['n_states_visited_recent']
 
-            current_max = np.max(all_ep_infos['r'])
-        else:
-            current_max = None
         self.ep_infos_new = []
-
-        if current_max is not None:
-            if (self.best_ext_ret is None) or (current_max > self.best_ext_ret):
-                self.best_ext_ret = current_max
-        self.current_max = current_max
+        self.current_max = None
 
     def env_step(self, l, acs):
-        self.envs[l].step_async(acs)
-        self.env_results[l] = None
+        obs = []
+        rews = []
+        dones = []
+        infos = []
+        for env_index in range(len(self.envs[l])):
+            env = self.envs[l][env_index]
+            ob,rew,done,info = env.step(acs[env_index])
+            if done:
+                ob = env.reset()
+            obs.append(ob)
+            rews.append(rew)
+            dones.append(done)
+            infos.append(info)
+        self.env_results[l] = np.array(obs),np.array(rews),np.array(dones),infos
 
     def env_get(self, l):
-        if self.step_count == 0:
-            ob = self.envs[l].reset()
-            out = self.env_results[l] = (ob, None, np.ones(self.lump_stride, bool), {})
-        else:
-            if self.env_results[l] is None:
-                out = self.env_results[l] = self.envs[l].step_wait()
-            else:
-                out = self.env_results[l]
-        return out
+        return self.env_results[l]

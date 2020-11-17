@@ -20,7 +20,7 @@ from cnn_policy import CnnPolicy
 from cppo_agent import PpoOptimizer
 from intrinsic_model import IntrinsicModel, UNet
 from utils import getsess, random_agent_ob_mean_std
-from wrappers import make_retro
+from wrappers import make_habitat
 
 
 def start_experiment(**args):
@@ -143,16 +143,14 @@ class Trainer:
             if info['update']:
                 logger.logkvs(info['update'])
                 logger.dumpkvs()
-            if self.agent.rollout.stats['tcount'] > self.num_timesteps:
+            if self.agent.n_updates > self.num_timesteps:
                 break
 
         self.agent.stop_interaction()
 
 
 def make_env_all_params(rank, add_monitor, make_video, args):
-    is_baseline = (args['feature_space'] == 'visual')
-    env = make_retro(env_name=args["env_kind"], naudio_samples=args['naudio_samples'] / 4,
-                     sticky_env=args['sticky_env'], make_video=make_video, is_baseline=is_baseline)
+    env = make_habitat()
 
     if add_monitor:
         env = Monitor(env, osp.join(logger.get_dir(), '%.2i' % rank))
@@ -188,7 +186,7 @@ def add_environments_params(parser):
                         help='maximum number of timesteps for episode',
                         default=4500,
                         type=int)
-    parser.add_argument('--env_kind', type=str, default="Breakout")
+    parser.add_argument('--env_kind', type=str, default="habitat")
     parser.add_argument('--noop_max', type=int, default=30)
 
 
@@ -201,12 +199,12 @@ def add_optimization_params(parser):
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--ent_coeff', type=float, default=0.001)
     parser.add_argument('--nepochs', type=int, default=3)
-    parser.add_argument('--num_timesteps', type=int, default=int(5e7))
+    parser.add_argument('--num_timesteps', type=int, default=int(15000))
 
 def add_rollout_params(parser):
     parser.add_argument('--nsteps_per_seg', type=int, default=128)
     parser.add_argument('--nsegs_per_env', type=int, default=1)
-    parser.add_argument('--envs_per_process', type=int, default=128)
+    parser.add_argument('--envs_per_process', type=int, default=1)
     parser.add_argument('--nlumps', type=int, default=1)
 
 
@@ -226,7 +224,7 @@ if __name__ == '__main__':
     parser.add_argument('--ext_coeff', type=float, default=0.)
     parser.add_argument('--int_coeff', type=float, default=1.)
     parser.add_argument('--layernorm', type=int, default=0)
-    parser.add_argument('--naudio_samples', type=int, default=530*4)
+    parser.add_argument('--naudio_samples', type=int, default=66150)
     parser.add_argument('--sticky_env', type=bool, default=False)
     parser.add_argument('--train_discriminator', type=bool, default=False)
     parser.add_argument('--discriminator_weighted', type=bool, default=False)
@@ -242,7 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--feature_space',
                         type=str,
                         default='visual')
-    parser.add_argument('--video_monitor', type=bool, default=True)
+    parser.add_argument('--video_monitor', type=bool, default=False)
 
     args = parser.parse_args()
 

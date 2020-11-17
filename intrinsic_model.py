@@ -10,7 +10,7 @@ class IntrinsicModel:
                  nsteps_per_seg=None, feat_dim=None, naudio_samples=None,
                  train_discriminator=False, scope='intrinsic_model',
                  discriminator_weighted=False, noise_multiplier=0.0,
-                 concat=False,log_dir='', make_video=False):
+                 concat=False, log_dir='', make_video=False):
         self.scope = scope
         self.auxiliary_task = auxiliary_task
         self.hidsize = self.auxiliary_task.hidsize
@@ -77,8 +77,8 @@ class IntrinsicModel:
                 window_size = 1
 
                 # Handle edge case
-                index_start = max(0, (step - window_size) * self.naudio_samples)
-                index_end = step * self.naudio_samples
+                index_start = step * self.naudio_samples
+                index_end = (step + window_size) * self.naudio_samples
                 clip = audio[env, index_start:index_end, 0]
                 if clip.size == 0:
                     continue
@@ -88,7 +88,7 @@ class IntrinsicModel:
                 new_shape = (self.feat_dim, int(fft.shape[0]/self.feat_dim))
                 fft_reshaped = np.reshape(fft[1:new_shape[0]*new_shape[1]+1], new_shape)
                 fft_condensed = np.max(np.abs(fft_reshaped), axis=1)
-                if step < audio_features.shape[1]:
+                if step >= 0 and step < audio_features.shape[1]:
                     audio_features[env, step, :] = fft_condensed / 50000
         return audio_features
 
@@ -113,7 +113,7 @@ class IntrinsicModel:
 
         # Create flags where 1 means use the true state and 0 means misalign the audio.
         audio_state_flags = tf.random_uniform(batch_size, minval=0, maxval=1) > .5
-        false_state =tf.random.shuffle(audio_state)
+        false_state = tf.random.shuffle(audio_state)
         self.combined_states = tf.where(audio_state_flags, x=audio_state, y=false_state)
         targets = tf.where(audio_state_flags, x=tf.ones(batch_size), y=tf.zeros(batch_size))
         self.discrim_targets = targets
@@ -130,7 +130,8 @@ class IntrinsicModel:
         self.state_diff = tf.norm(audio_state-false_state, axis=1, keepdims=True)
 
         if self.discriminator_weighted:
-            weighted_loss = self.state_diff * discrim_loss / tf.reduce_mean(self.state_diff)
+            tensor_divisor = tf.fill(tf.shape(self.state_diff), tf.reduce_mean(self.state_diff))
+            weighted_loss = tf.math.divide_no_nan(self.state_diff * discrim_loss, tensor_divisor)
             discrim_loss = tf.where(audio_state_flags, x=discrim_loss, y=weighted_loss)
         return discrim_loss
 

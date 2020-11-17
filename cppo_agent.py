@@ -96,9 +96,7 @@ class PpoOptimizer:
         self.nenvs = nenvs = len(env_fns)
         self.nlump = nlump
         self.lump_stride = nenvs // self.nlump
-        self.envs = [
-            VecEnv(env_fns[l * self.lump_stride: (l + 1) * self.lump_stride],
-                   spaces=[self.ob_space, self.ac_space]) for l in range(self.nlump)]
+        self.envs = [[env_fn() for env_fn in env_fns]]
 
         self.rollout = Rollout(ob_space=self.ob_space, ac_space=self.ac_space, nenvs=nenvs,
                                nsteps_per_seg=self.nsteps_per_seg,
